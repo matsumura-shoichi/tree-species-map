@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MapLibre Vector Tiles Example</title>
+    <title>Tree Species Map with 3D Terrain</title>
     <link href="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.css" rel="stylesheet" />
     <style>
         body { margin: 0; padding: 0; }
@@ -14,9 +14,8 @@
     <div id="map"></div>
     <script src="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.js"></script>
     <script>
-        // MapLibre GL JSの地図を作成
         const map = new maplibregl.Map({
-            container: 'map', // 地図を表示するHTML要素のID
+            container: 'map',
             style: {
                 "version": 8,
                 "sources": {
@@ -26,23 +25,13 @@
                             "https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png"
                         ],
                         "tileSize": 256
-                    },
-                    "tree_species_source": {
-                        "type": "vector",
-                        "tiles": [
-                            "https://rinya-tochigi.geospatial.jp/2023/rinya/tile/tree_species/{z}/{x}/{y}.pbf"
-                        ],
-                        "minzoom": 8,
-                        "maxzoom": 18
                     }
                 },
                 "layers": [
                     {
                         "id": "background",
                         "type": "background",
-                        "paint": {
-                            "background-color": "#ffffff"
-                        }
+                        "paint": { "background-color": "#ffffff" }
                     },
                     {
                         "id": "base-map",
@@ -53,89 +42,39 @@
                     }
                 ]
             },
-            center: [139.6917, 35.6895], // 初期位置の経度と緯度
-            zoom: 10 // 初期ズームレベル
-        });
-// ポリゴンIDごとの樹種名対応表
-const treeSpeciesMap = {
-    "01": "スギ",
-    "02": "ヒノキ類",
-    "03": "マツ類",
-    "04": "カラマツ",
-    "05": "トドマツ",
-    "06": "エゾマツ",
-    "07": "その他N",
-    "08": "クヌギ",
-    "09": "ナラ類",
-    "10": "ブナ",
-    "11": "その他L",
-    "12": "タケ",
-    "96": "針広混交林",
-    "97": "新植地",
-    "98": "伐採跡地",
-    "99": "その他"
-};
-
-// ポップアップの準備
-const popup = new maplibregl.Popup({
-    closeButton: false,
-    closeOnClick: false
-});
-
-// 対象レイヤーIDのリスト（style.jsonから取得）
-const treeLayerIds = [
-    "tree_species_01_スギ",
-    "tree_species_02_ヒノキ類",
-    "tree_species_03_マツ類",
-    "tree_species_04_カラマツ",
-    "tree_species_05_トドマツ",
-    "tree_species_06_エゾマツ",
-    "tree_species_07_その他N",
-    "tree_species_08_クヌギ",
-    "tree_species_09_ナラ類",
-    "tree_species_10_ブナ",
-    "tree_species_11_その他L",
-    "tree_species_12_タケ",
-    "tree_species_96_針広混交林",
-    "tree_species_97_新植地",
-    "tree_species_98_伐採跡地",
-    "tree_species_99_その他"
-];
-
-// マウスムーブイベントで属性表示
-map.on('mousemove', (e) => {
-    const features = map.queryRenderedFeatures(e.point, {
-        layers: treeLayerIds
-    });
-
-    if (features.length > 0) {
-        const feature = features[0];
-        const id = feature.properties["解析樹種ID"];
-        const name = treeSpeciesMap[id] || `不明な樹種（ID: ${id}）`;
-
-        popup
-            .setLngLat(e.lngLat)
-            .setHTML(`<strong>樹種:</strong> ${name}`)
-            .addTo(map);
-    } else {
-        popup.remove();
-    }
-});
-
-        // スタイルのロード
-        map.on('style.load', function() {
-            fetch('https://rinya-tochigi.geospatial.jp/2023/rinya/tile/tree_species/style.json')
-                .then(response => response.json())
-                .then(style => {
-                    for (const layer of style.layers) {
-                        map.addLayer(layer);
-                    }
-                })
-                .catch(err => console.error('Error loading style:', err));
+            center: [139.6917, 35.6895],
+            zoom: 10,
+            pitch: 60,   // 傾けて3D感
+            bearing: -17.6,
+            antialias: true
         });
 
-        // ベクトルタイルのレイヤーを追加
-        map.on('style.load', function() {
+        map.on('load', function () {
+            // 標高タイル（DEM）の追加
+            map.addSource('terrainSource', {
+                type: 'raster-dem',
+                tiles: [
+                    'https://tiles.gsj.jp/tiles/elev/{z}/{x}/{y}.png'
+                ],
+                tileSize: 256,
+                maxzoom: 15
+            });
+
+            // 地形設定（倍率1.5倍で強調）
+            map.setTerrain({ source: 'terrainSource', exaggeration: 1.5 });
+
+            // 空レイヤー
+            map.addLayer({
+                id: 'sky',
+                type: 'sky',
+                paint: {
+                    'sky-type': 'atmosphere',
+                    'sky-atmosphere-sun': [0.0, 0.0],
+                    'sky-atmosphere-sun-intensity': 15
+                }
+            });
+
+            // 樹種ポリゴンのソース追加
             map.addSource('tree_species_source', {
                 type: 'vector',
                 tiles: [
@@ -144,11 +83,31 @@ map.on('mousemove', (e) => {
                 minzoom: 8,
                 maxzoom: 18
             });
-            // 各レイヤーを追加
-            style.layers.forEach(layer => {
-                if (layer.source === 'tree_species_source') {
-                    map.addLayer(layer);
+
+            // 樹種ポリゴンのレイヤー追加
+            map.addLayer({
+                id: 'tree_species_layer',
+                type: 'fill',
+                source: 'tree_species_source',
+                'source-layer': 'tree_species', // style.json内のレイヤー名に合わせる
+                paint: {
+                    'fill-color': '#008000',
+                    'fill-opacity': 0.5
                 }
+            });
+
+            // マウスホバーで属性表示
+            const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false });
+            map.on('mousemove', 'tree_species_layer', function (e) {
+                map.getCanvas().style.cursor = 'pointer';
+                const props = e.features[0].properties;
+                popup.setLngLat(e.lngLat)
+                     .setHTML(`<strong>樹種:</strong> ${props.species || '不明'}`)
+                     .addTo(map);
+            });
+            map.on('mouseleave', 'tree_species_layer', function () {
+                map.getCanvas().style.cursor = '';
+                popup.remove();
             });
         });
     </script>
