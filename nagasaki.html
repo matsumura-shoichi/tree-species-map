@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>長崎県 3D地形＋樹種ポリゴン</title>
+<link href="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.css" rel="stylesheet" />
+<style>
+  body { margin: 0; padding: 0; }
+  #map { width: 100vw; height: 100vh; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<script src="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.js"></script>
+<script>
+// ■ 長崎県データ
+const DEM_URL       = "https://forestgeo.info/opendata/42_nagasaki/dem_terrainRGB_2022/{z}/{x}/{y}.png";
+const TREE_PBF_URL  = "https://forestgeo.info/opendata/42_nagasaki/treespecies_2022/{z}/{x}/{y}.pbf";
+const STYLE_JSON_URL= "https://forestgeo.info/opendata/42_nagasaki/treespecies_2022/style.json";
+const CENTER        = [129.873,32.750]; // 長崎県庁
+const ZOOM          = 9;
+
+const map = new maplibregl.Map({
+  container: "map",
+  style: {
+    version: 8,
+    sources: {
+      gsi_photo: { type: "raster", tiles:["https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg"], tileSize:256 },
+      gsi_std:   { type: "raster", tiles:["https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png"], tileSize:256 },
+      dem_source:{ type: "raster-dem", tiles:[DEM_URL], tileSize:256 },
+      ts_source: { type: "vector", tiles:[TREE_PBF_URL], minzoom:0, maxzoom:24 }
+    },
+    layers: [
+      { id:"background", type:"background", paint:{"background-color":"#fff"} },
+      { id:"base-photo", type:"raster", source:"gsi_photo", layout:{visibility:"visible"} },
+      { id:"base-std",   type:"raster", source:"gsi_std", layout:{visibility:"none"} }
+    ],
+    terrain:{ source:"dem_source", exaggeration:1.0 }
+  },
+  center:CENTER,
+  zoom:ZOOM,
+  pitch:45,
+  bearing:0,
+  maxPitch:85
+});
+
+const treeSpeciesMap = {
+  "01":"スギ","02":"ヒノキ類","03":"マツ類","04":"カラマツ",
+  "05":"トドマツ","06":"エゾマツ","07":"その他N","08":"クヌギ",
+  "09":"ナラ類","10":"ブナ","11":"その他L","12":"タケ",
+  "96":"針広混交林","97":"新植地","98":"伐採跡地","99":"その他"
+};
+
+const popup = new maplibregl.Popup({ closeButton:false, closeOnClick:false });
+
+map.on("load", ()=>{
+  fetch(STYLE_JSON_URL)
+    .then(r=>r.json())
+    .then(style=>{
+      style.layers.forEach(layer=>{
+        if(layer.type==="fill"){ layer.paint = layer.paint||{}; layer.paint["fill-opacity"]=0.5; }
+        layer.source="ts_source";
+        map.addLayer(layer);
+      });
+    });
+
+  // ベースマップ切替
+  const div = document.createElement("div");
+  div.style.position="absolute"; div.style.top="10px"; div.style.left="10px"; div.style.zIndex=1;
+  div.style.background="rgba(255,255,255,0.9)"; div.style.padding="5px"; div.style.borderRadius="6px";
+  div.innerHTML='<label><input type="radio" name="base" value="photo" checked> 写真</label> <label><input type="radio" name="base" value="std"> 標準</label>';
+  document.body.appendChild(div);
+  div.querySelectorAll('input[name="base"]').forEach(radio=>{
+    radio.addEventListener('change', e=>{
+      const which=e.target.value;
+      map.setLayoutProperty("base-photo","visibility", which==="photo"?"visible":"none");
+      map.setLayoutProperty("base-std","visibility", which==="std"?"visible":"none");
+    });
+  });
+});
+
+// マウスオーバーで樹種名ポップアップ
+map.on("mousemove", e=>{
+  const features = map.queryRenderedFeatures(e.point, { source:"ts_source" });
+  if(features.length>0){
+    const f=features[0];
+    const id=f.properties["解析樹種ID"];
+    const name=treeSpeciesMap[id]||`不明な樹種(ID:${id})`;
+    popup.setLngLat(e.lngLat).setHTML(`<strong>樹種:</strong>${name}`).addTo(map);
+  } else { popup.remove(); }
+});
+</script>
+</body>
+</html>

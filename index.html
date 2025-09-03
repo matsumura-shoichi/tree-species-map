@@ -1,137 +1,30 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>3D地形＋樹種ポリゴン（写真/標準 切替）</title>
-  <link href="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.css" rel="stylesheet" />
-  <style>
-    body { margin: 0; padding: 0; }
-    #map { width: 100vw; height: 100vh; }
-    .basemap-toggle {
-      position: absolute; z-index: 1; top: 10px; left: 10px;
-      background: rgba(255,255,255,0.9); border-radius: 8px; padding: 8px 10px;
-      font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans JP", "Hiragino Kaku Gothic ProN", Meiryo, Arial, sans-serif;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.2);
-    }
-    .basemap-toggle label { margin-right: 8px; cursor: pointer; }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>林野庁 樹種ポリゴン 地域選択</title>
+<style>
+  body { font-family: sans-serif; padding: 20px; }
+  h1 { margin-bottom: 20px; }
+  ul { list-style: none; padding: 0; }
+  li { margin-bottom: 10px; }
+  a { text-decoration: none; color: #0066cc; }
+  a:hover { text-decoration: underline; }
+</style>
 </head>
 <body>
-<div id="map"></div>
-
-<!-- ベースマップ切替UI -->
-<div class="basemap-toggle">
-  <label><input type="radio" name="base" value="photo" checked> 写真</label>
-  <label><input type="radio" name="base" value="std"> 標準</label>
-</div>
-
-<script src="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.js"></script>
-<script>
-const map = new maplibregl.Map({
-  container: "map",
-  style: {
-    version: 8,
-    sources: {
-      // 写真地図（シームレス空中写真）
-      gsi_photo: {
-        type: "raster",
-        tiles: [
-          "https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg"
-        ],
-        tileSize: 256,
-        attribution: "地理院タイル（写真/標準）"
-      },
-      // 標準地図
-      gsi_std: {
-        type: "raster",
-        tiles: [
-          "https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png"
-        ],
-        tileSize: 256
-      },
-      // DEM（Terrain-RGB）
-      dem: {
-        type: "raster-dem",
-        tiles: [
-          "https://rinya-tochigi.geospatial.jp/2023/rinya/tile/terrainRGB/{z}/{x}/{y}.png"
-        ],
-        tileSize: 256
-      },
-      // 樹種ベクトルタイル
-      tree_species_source: {
-        type: "vector",
-        tiles: [
-          "https://rinya-tochigi.geospatial.jp/2023/rinya/tile/tree_species/{z}/{x}/{y}.pbf"
-        ],
-        minzoom: 8,
-        maxzoom: 18
-      }
-    },
-    layers: [
-      { id: "background", type: "background", paint: { "background-color": "#ffffff" } },
-
-      /* ▼ ベースマップ2枚を重ね、visibilityで切替 */
-      { id: "base-photo", type: "raster", source: "gsi_photo", layout: { visibility: "visible" } },
-      { id: "base-std",   type: "raster", source: "gsi_std",   layout: { visibility: "none"    } }
-      /* ▲ この上に樹種ポリゴンレイヤーが加わる（後段の fetch で追加） */
-    ],
-    terrain: { source: "dem", exaggeration: 1.0 }
-  },
-  center: [139.6917, 35.6895], // 東京
-  zoom: 10,
-  pitch: 45,
-  maxPitch: 85
-});
-
-// 樹種ID→名称対応表
-const treeSpeciesMap = {
-  "01": "スギ","02": "ヒノキ類","03": "マツ類","04": "カラマツ",
-  "05": "トドマツ","06": "エゾマツ","07": "その他N","08": "クヌギ",
-  "09": "ナラ類","10": "ブナ","11": "その他L","12": "タケ",
-  "96": "針広混交林","97": "新植地","98": "伐採跡地","99": "その他"
-};
-
-const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false });
-
-map.on("load", () => {
-  // 樹種レイヤー（提供スタイルを読み込み、fillは半透明化）
-  fetch("https://rinya-tochigi.geospatial.jp/2023/rinya/tile/tree_species/style.json")
-    .then(r => r.json())
-    .then(style => {
-      style.layers.forEach(layer => {
-        if (layer.type === "fill") {
-          layer.paint = layer.paint || {};
-          layer.paint["fill-opacity"] = 0.5;
-        }
-        map.addLayer(layer);
-      });
-    });
-
-  // ベースマップ切替イベント
-  document.querySelectorAll('input[name="base"]').forEach(radio => {
-    radio.addEventListener('change', (e) => {
-      const which = e.target.value; // "photo" or "std"
-      map.setLayoutProperty("base-photo", "visibility", which === "photo" ? "visible" : "none");
-      map.setLayoutProperty("base-std",   "visibility", which === "std"   ? "visible" : "none");
-    });
-  });
-});
-
-// マウスオーバーで樹種名ポップアップ
-map.on("mousemove", e => {
-  const features = map.queryRenderedFeatures(e.point, {
-    source: "tree_species_source"
-  });
-  if (features.length > 0) {
-    const f = features[0];
-    const id = f.properties["解析樹種ID"];
-    const name = treeSpeciesMap[id] || `不明な樹種（ID:${id}）`;
-    popup.setLngLat(e.lngLat).setHTML(`<strong>樹種:</strong> ${name}`).addTo(map);
-  } else {
-    popup.remove();
-  }
-});
-</script>
+<h1>林野庁 樹種ポリゴン 地域選択</h1>
+<ul>
+  <li><a href="tochigi.html" target="_blank">栃木県</a></li>
+  <li><a href="hyogo.html" target="_blank">兵庫県</a></li>
+  <li><a href="kochi.html" target="_blank">高知県</a></li>
+  <li><a href="shiga.html" target="_blank">滋賀県</a></li>
+  <li><a href="kanagawa.html" target="_blank">神奈川県</a></li>
+  <li><a href="nagasaki.html" target="_blank">長崎県</a></li>
+  <li><a href="ehime.html" target="_blank">愛媛県</a></li>
+  <li><a href="noto.html" target="_blank">能登地域</a></li>
+  <li><a href="nagaoka.html" target="_blank">長岡地域</a></li>
+</ul>
 </body>
 </html>
