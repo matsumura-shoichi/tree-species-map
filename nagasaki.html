@@ -40,7 +40,7 @@ const map = new maplibregl.Map({
   },
   center:CENTER,
   zoom:ZOOM,
-  pitch:45,
+  pitch:0,
   bearing:0,
   maxPitch:85
 });
@@ -54,30 +54,75 @@ const treeSpeciesMap = {
 
 const popup = new maplibregl.Popup({ closeButton:false, closeOnClick:false });
 
-map.on("load", ()=>{
+map.on("load", ()=> {
+  // ▼ 樹種ポリゴン追加
   fetch(STYLE_JSON_URL)
-    .then(r=>r.json())
-    .then(style=>{
-      style.layers.forEach(layer=>{
-        if(layer.type==="fill"){ layer.paint = layer.paint||{}; layer.paint["fill-opacity"]=0.5; }
+    .then(r => r.json())
+    .then(style => {
+      style.layers.forEach(layer => {
+        if(layer.type==="fill"){ 
+          layer.paint = layer.paint || {}; 
+          layer.paint["fill-opacity"] = 0.5; 
+        }
         layer.source="ts_source";
         map.addLayer(layer);
       });
     });
 
-  // ベースマップ切替
-  const div = document.createElement("div");
-  div.style.position="absolute"; div.style.top="10px"; div.style.left="10px"; div.style.zIndex=1;
-  div.style.background="rgba(255,255,255,0.9)"; div.style.padding="5px"; div.style.borderRadius="6px";
-  div.innerHTML='<label><input type="radio" name="base" value="photo" checked> 写真</label> <label><input type="radio" name="base" value="std"> 標準</label>';
-  document.body.appendChild(div);
-  div.querySelectorAll('input[name="base"]').forEach(radio=>{
-    radio.addEventListener('change', e=>{
-      const which=e.target.value;
-      map.setLayoutProperty("base-photo","visibility", which==="photo"?"visible":"none");
-      map.setLayoutProperty("base-std","visibility", which==="std"?"visible":"none");
-    });
-  });
+  // ▼ ベースマップ切替コントロール
+  const baseControl = {
+    onAdd: function(map) {
+      const div = document.createElement("div");
+      div.className = "maplibregl-ctrl maplibregl-ctrl-group";
+      div.style.background = "rgba(255,255,255,0.9)";
+      div.style.padding = "4px 8px";
+      div.innerHTML = `
+        <label><input type="radio" name="base" value="photo" checked> 写真</label>
+        <label><input type="radio" name="base" value="std"> 標準</label><br>
+        <label><input type="checkbox" id="toggleTrees" checked> 樹種ポリゴン</label>
+      `;
+
+      // ベースマップ切替
+      div.querySelectorAll('input[name="base"]').forEach(radio=>{
+        radio.addEventListener('change', e=>{
+          const which=e.target.value;
+          map.setLayoutProperty("base-photo","visibility", which==="photo"?"visible":"none");
+          map.setLayoutProperty("base-std","visibility", which==="std"?"visible":"none");
+        });
+      });
+
+      // 樹種ポリゴン ON/OFF
+      div.querySelector("#toggleTrees").addEventListener("change", e=>{
+        const visible = e.target.checked ? "visible" : "none";
+        // style.jsonで追加されたレイヤーすべてを対象に切替
+        map.getStyle().layers.forEach(layer=>{
+          if(layer.source === "ts_source"){
+            map.setLayoutProperty(layer.id, "visibility", visible);
+          }
+        });
+      });
+
+      return div;
+    },
+    onRemove: function(map) {}
+  };
+  map.addControl(baseControl, "top-left");
+
+  // ▼ 戻るボタン
+  const backControl = {
+    onAdd: function(map) {
+      const div = document.createElement("div");
+      div.className = "maplibregl-ctrl maplibregl-ctrl-group";
+      div.style.background = "rgba(255,255,255,0.9)";
+      div.style.padding = "4px 8px";
+      div.innerHTML = "← 戻る";
+      div.style.cursor = "pointer";
+      div.addEventListener("click", ()=>{ window.location.href="index.html"; });
+      return div;
+    },
+    onRemove: function(map) {}
+  };
+  map.addControl(backControl, "top-left");
 });
 
 // マウスオーバーで樹種名ポップアップ
