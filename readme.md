@@ -8,7 +8,7 @@
 
 **公開サイト**: [https://matsumura-shoichi.github.io/tree-species-map/](https://matsumura-shoichi.github.io/tree-species-map/)
 
-# [![サンプル動画](https://youtu.be/I8ZvEXq2LKU)](https://youtu.be/I8ZvEXq2LKU>)
+# [![サンプル動画](https://youtu.be/I8ZvEXq2LKU/0.jpg)](https://youtu.be/I8ZvEXq2LKU>)
 
 
 ## 概要
