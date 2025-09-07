@@ -4,10 +4,11 @@
  高分解能（0.5m）標高データによる立体地図上に重ね合わせて可視化するサンプルサイトです。  
 
 ---
-# Tree Species Map
+## Tree Species Map
 
 **公開サイト**: [https://matsumura-shoichi.github.io/tree-species-map/](https://matsumura-shoichi.github.io/tree-species-map/)
 
+## サンプル動画
 [![サンプル動画](https://img.youtube.com/vi/I8ZvEXq2LKU/0.jpg)](https://youtu.be/I8ZvEXq2LKU)
 
 
